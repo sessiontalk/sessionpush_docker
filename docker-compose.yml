@@ -1,0 +1,43 @@
+version: '2'
+services:
+   mongo:
+     image: mongo:3.4
+     restart: always
+     ports:
+      - "27017:27017"   
+     volumes:
+      - ./mongodb:/data/db
+   mongo-seed:
+     image: sessiontalk/sessionflow_seed_data
+     links:
+      - mongo
+   web:
+     image: sessiontalk/sessionpush
+     environment:
+      - SESSIONPUSH_APP_ID=$SESSIONPUSH_APP_ID 
+      - SESSIONPUSH_MASTER_KEY=$SESSIONPUSH_MASTER_KEY
+      - SESSIONPUSH_MONGOLAB_URI=$SESSIONPUSH_MONGOLAB_URI
+      - PUSH_TOKEN_IOS_KEYID=$PUSH_TOKEN_IOS_KEYID
+      - PUSH_IOS_TEAMID=$PUSH_IOS_TEAMID
+      - PUSH_TOPIC=$PUSH_TOPIC
+     ports:
+      - "1337:1337"
+      - "6000:6000"
+     depends_on:
+      - mongo
+     restart: always 
+     volumes:
+      - ./certs:/sessionpush/certs 
+     links:
+      - mongo
+   nginx:
+     image: sessiontalk/sessionpush_nginx
+     restart: always
+     depends_on:
+      - web
+     ports:
+      - "443:443"
+     links:
+      - web
+     volumes:
+      - ./certs:/etc/nginx/certs   
