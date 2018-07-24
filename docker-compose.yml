@@ -1,4 +1,4 @@
-version: '2'
+version: '3'
 services:
    mongo:
      image: mongo:3.4
@@ -12,7 +12,7 @@ services:
      links:
       - mongo
    web:
-     image: sessiontalk/sessionpush
+     image: sessiontalk/sessionpush:v2.02
      environment:
       - SESSIONPUSH_APP_ID=$SESSIONPUSH_APP_ID 
       - SESSIONPUSH_MASTER_KEY=$SESSIONPUSH_MASTER_KEY
@@ -20,6 +20,8 @@ services:
       - PUSH_TOKEN_IOS_KEYID=$PUSH_TOKEN_IOS_KEYID
       - PUSH_IOS_TEAMID=$PUSH_IOS_TEAMID
       - PUSH_TOPIC=$PUSH_TOPIC
+      - PUSH_HOST=$PUSH_HOST
+      - FIREBASE_DATABASE_URL=$FIREBASE_DATABASE_URL
      ports:
       - "1337:1337"
       - "6000:6000"
