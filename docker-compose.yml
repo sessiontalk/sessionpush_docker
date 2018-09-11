@@ -12,7 +12,7 @@ services:
      links:
       - mongo
    web:
-     image: sessiontalk/sessionpush:v2.02
+     image: sessiontalk/sessionpush:v2.06
      environment:
       - SESSIONPUSH_APP_ID=$SESSIONPUSH_APP_ID 
       - SESSIONPUSH_MASTER_KEY=$SESSIONPUSH_MASTER_KEY
