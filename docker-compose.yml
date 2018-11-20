@@ -1,45 +1,87 @@
-version: '3'
+version: '3.4'
+networks:
+   hostnet:
+     external:
+       name: "sessiontalk"
 services:
    mongo:
      image: mongo:3.4
+     deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
      restart: always
+    # network_mode: "host" 
+     networks:
+      - hostnet
      ports:
-      - "27017:27017"   
+      - "27017:27017"
      volumes:
       - ./mongodb:/data/db
    mongo-seed:
      image: sessiontalk/sessionflow_seed_data
-     links:
-      - mongo
+     deploy:
+       restart_policy:
+         condition: none      
+     #network_mode: host
+     networks:
+      - hostnet
    web:
-     image: sessiontalk/sessionpush:v2.06
+     image: sessiontalk/sessionpush:v2.07
+     #network_mode: "host"
+     networks:
+      - hostnet
+     deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
      environment:
-      - SESSIONPUSH_APP_ID=$SESSIONPUSH_APP_ID 
-      - SESSIONPUSH_MASTER_KEY=$SESSIONPUSH_MASTER_KEY
-      - SESSIONPUSH_MONGOLAB_URI=$SESSIONPUSH_MONGOLAB_URI
-      - PUSH_TOKEN_IOS_KEYID=$PUSH_TOKEN_IOS_KEYID
-      - PUSH_IOS_TEAMID=$PUSH_IOS_TEAMID
-      - PUSH_TOPIC=$PUSH_TOPIC
-      - PUSH_HOST=$PUSH_HOST
-      - FIREBASE_DATABASE_URL=$FIREBASE_DATABASE_URL
+      - SESSIONPUSH_APP_ID=${SESSIONPUSH_APP_ID}
+      - SESSIONPUSH_MASTER_KEY=${SESSIONPUSH_MASTER_KEY}
+      - SESSIONPUSH_MONGOLAB_URI=${SESSIONPUSH_MONGOLAB_URI}
+      - PUSH_TOKEN_IOS_KEYID=${PUSH_TOKEN_IOS_KEYID}
+      - PUSH_IOS_TEAMID=${PUSH_IOS_TEAMID}
+      - PUSH_TOPIC=${PUSH_TOPIC}
+      - PUSH_HOST=${PUSH_HOST}
+      - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL}
+      - PUSH_PRODUCTION=${PUSH_PRODUCTION}
+      - USE_TUNNEL=${USE_TUNNEL}
      ports:
       - "1337:1337"
       - "6000:6000"
-     depends_on:
-      - mongo
-     restart: always 
-     volumes:
-      - ./certs:/sessionpush/certs 
-     links:
-      - mongo
-   nginx:
-     image: sessiontalk/sessionpush_nginx
      restart: always
-     depends_on:
-      - web
+     volumes:
+      - ./certs:/sessionpush/certs
+     logging:
+      driver: "json-file"
+      options:
+       max-size: "200k"
+       max-file: "10"
+     healthcheck:
+      test: node check.js
+      interval: 60s
+      timeout: 30s
+      retries: 1 
+   haproxy:
+     image: sessiontalk/sessionpush_haproxy:v1
+     #network_mode: "host"
+     networks:
+      - hostnet
+     environment:
+      - SESSIONPUSH_APP_ID=${SESSIONPUSH_APP_ID}
+      - SESSIONPUSH_MASTER_KEY=${SESSIONPUSH_MASTER_KEY}
+     deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+     restart: always
      ports:
       - "443:443"
-     links:
-      - web
      volumes:
-      - ./certs:/etc/nginx/certs   
+      - ./certs:/etc/ssl/certs/push
+     healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/haproxy_stats"]
+      interval: 120s
+      timeout: 10s
+      retries: 2
+     # start_period: 5m
