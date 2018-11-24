@@ -27,7 +27,7 @@ services:
      networks:
       - hostnet
    web:
-     image: sessiontalk/sessionpush:v2.07
+     image: sessiontalk/sessionpush:v2.08
      #network_mode: "host"
      networks:
       - hostnet
