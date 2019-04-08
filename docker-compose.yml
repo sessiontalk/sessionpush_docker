@@ -27,7 +27,7 @@ services:
      networks:
       - hostnet
    web:
-     image: sessiontalk/sessionpush:v2.08
+     image: sessiontalk/sessionpush:v2.19
      #network_mode: "host"
      networks:
       - hostnet
@@ -46,6 +46,8 @@ services:
       - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL}
       - PUSH_PRODUCTION=${PUSH_PRODUCTION}
       - USE_TUNNEL=${USE_TUNNEL}
+      - SERVER_IP=${SERVER_IP}
+      - PUSH_EXPIRY=${PUSH_EXPIRY}
      ports:
       - "1337:1337"
       - "6000:6000"
@@ -55,12 +57,12 @@ services:
      logging:
       driver: "json-file"
       options:
-       max-size: "200k"
-       max-file: "10"
+       max-size: "500k"
+       max-file: "1"
      healthcheck:
       test: node check.js
       interval: 60s
-      timeout: 30s
+      timeout: 10s
       retries: 1 
    haproxy:
      image: sessiontalk/sessionpush_haproxy:v1
@@ -81,7 +83,7 @@ services:
       - ./certs:/etc/ssl/certs/push
      healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/haproxy_stats"]
-      interval: 120s
+      interval: 30s
       timeout: 10s
-      retries: 2
+      retries: 1
      # start_period: 5m
