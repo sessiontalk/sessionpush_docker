@@ -1,89 +1,157 @@
 version: '3.4'
 networks:
-   hostnet:
-     external:
-       name: "sessiontalk"
+  hostnet:
+    external:
+      name: "sessiontalk"
 services:
-   mongo:
-     image: mongo:3.4
-     deploy:
+  rabbitmq:
+    image: rabbitmq:management
+    networks:
+      - hostnet
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ./rabbitmqdata:/var/lib/rabbitmq
+    hostname: rabbitmq
+  mongo:
+    image: mongo:3.4
+    deploy:
       replicas: 1
       restart_policy:
         condition: any
-     restart: always
+    restart: always
     # network_mode: "host" 
-     networks:
+    networks:
       - hostnet
-     ports:
+    ports:
       - "27017:27017"
-     volumes:
+    volumes:
       - ./mongodb:/data/db
-   mongo-seed:
-     image: sessiontalk/sessionflow_seed_data
-     deploy:
-       restart_policy:
-         condition: none      
-     #network_mode: host
-     networks:
+  mongo-seed:
+    image: sessiontalk/sessionflow_seed_data
+    deploy:
+      restart_policy:
+        condition: none
+    #network_mode: host
+    networks:
       - hostnet
-   web:
-     image: sessiontalk/sessionpush:v2.19
-     #network_mode: "host"
-     networks:
+  sipworker:
+    image: 813518813064.dkr.ecr.eu-west-2.amazonaws.com/sipworker:v214 #network_mode: "host"
+    #cap_add:
+    # - SYS_PTRACE
+    #privileged: true
+    #security_opt:
+    #- seccomp:unconfined
+    networks:
       - hostnet
-     deploy:
+    deploy:
       replicas: 1
+      resources:
+        limits:
+          memory: 3000m
       restart_policy:
         condition: any
-     environment:
+    environment:
       - SESSIONPUSH_APP_ID=${SESSIONPUSH_APP_ID}
       - SESSIONPUSH_MASTER_KEY=${SESSIONPUSH_MASTER_KEY}
       - SESSIONPUSH_MONGOLAB_URI=${SESSIONPUSH_MONGOLAB_URI}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
       - PUSH_TOKEN_IOS_KEYID=${PUSH_TOKEN_IOS_KEYID}
+      - PUSH_TOKEN_IOS_KEY=${PUSH_TOKEN_IOS_KEY}
       - PUSH_IOS_TEAMID=${PUSH_IOS_TEAMID}
       - PUSH_TOPIC=${PUSH_TOPIC}
+      - PUSH_JWT_TOPIC=${PUSH_JWT_TOPIC}
       - PUSH_HOST=${PUSH_HOST}
       - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL}
       - PUSH_PRODUCTION=${PUSH_PRODUCTION}
       - USE_TUNNEL=${USE_TUNNEL}
       - SERVER_IP=${SERVER_IP}
       - PUSH_EXPIRY=${PUSH_EXPIRY}
-     ports:
-      - "1337:1337"
+      - FCM_SERVER_KEY=${FCM_SERVER_KEY}
+      - FCM_SENDER_ID=${FCM_SENDER_ID}
+      - ASPNETCORE_URLS=${ASPNETCORE_URLS}
+    ports:
       - "6000:6000"
-     restart: always
-     volumes:
-      - ./certs:/sessionpush/certs
-     logging:
+      - "5004:5004"
+    restart: always
+    volumes:
+      - ./certs:/sipworker/certs
+    healthcheck:
+      test: curl -f http://0.0.0.0:5004/health || exit 1
+      interval: 60s
+      timeout: 3s
+      retries: 1
+    logging:
       driver: "json-file"
       options:
-       max-size: "500k"
-       max-file: "1"
-     healthcheck:
-      test: node check.js
-      interval: 60s
-      timeout: 10s
-      retries: 1 
-   haproxy:
-     image: sessiontalk/sessionpush_haproxy:v1
-     #network_mode: "host"
-     networks:
+        max-size: "100m"
+        max-file: "1"
+        mode: "non-blocking"
+  web:
+    image: 813518813064.dkr.ecr.eu-west-2.amazonaws.com/webui:v15
+    #network_mode: "host"
+    networks:
       - hostnet
-     environment:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 2000M
+      restart_policy:
+        condition: any
+    environment:
       - SESSIONPUSH_APP_ID=${SESSIONPUSH_APP_ID}
       - SESSIONPUSH_MASTER_KEY=${SESSIONPUSH_MASTER_KEY}
-     deploy:
+      - SESSIONPUSH_MONGOLAB_URI=${SESSIONPUSH_MONGOLAB_URI}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - PUSH_TOKEN_IOS_KEYID=${PUSH_TOKEN_IOS_KEYID}
+      - PUSH_TOKEN_IOS_KEY=${PUSH_TOKEN_IOS_KEY}
+      - PUSH_IOS_TEAMID=${PUSH_IOS_TEAMID}
+      - PUSH_TOPIC=${PUSH_TOPIC}
+      - PUSH_JWT_TOPIC=${PUSH_JWT_TOPIC}
+      - PUSH_PRODUCTION=${PUSH_PRODUCTION}
+      - USE_TUNNEL=${USE_TUNNEL}
+      - SERVER_IP=${SERVER_IP}
+      - PUSH_HOST=${PUSH_HOST}
+      - PUSH_EXPIRY=${PUSH_EXPIRY}
+      - ASPNETCORE_URLS=${ASPNETCORE_URLS}
+    ports:
+      - "5000:5000"
+    restart: always
+    volumes:
+      - ./certs:/sessionpush/certs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "1"
+  haproxy:
+    image: sessiontalk/sessionpush_haproxy:v2
+    #network_mode: "host"
+    networks:
+      - hostnet
+    environment:
+      - SESSIONPUSH_APP_ID=${SESSIONPUSH_APP_ID}
+      - SESSIONPUSH_MASTER_KEY=${SESSIONPUSH_MASTER_KEY}
+    deploy:
       replicas: 1
       restart_policy:
         condition: any
-     restart: always
-     ports:
+    restart: always
+    ports:
       - "443:443"
-     volumes:
+    volumes:
       - ./certs:/etc/ssl/certs/push
-     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/haproxy_stats"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:9000/haproxy_stats"
+        ]
       interval: 30s
       timeout: 10s
       retries: 1
-     # start_period: 5m
+    # start_period: 5m
